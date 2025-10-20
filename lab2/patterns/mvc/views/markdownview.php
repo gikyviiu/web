@@ -1,6 +1,8 @@
 <?php
 namespace Mvc\Views;
 
+require_once 'Parsedown.php';
+
 class MarkdownView
 {
     private array $users;
@@ -12,11 +14,13 @@ class MarkdownView
 
     public function render(): string
     {
-        $markdown = "# Список пользователей\n\n";
+        $markdown = "# Список пользователей\n";
         foreach ($this->users as $user) {
-            $markdown .= "- **Имя:** {$user->first_name} {$user->last_name}\n";
-            $markdown .= "  - Email: `{$user->email}`\n\n";
+            $markdown .= "**Имя:** {$user->first_name} {$user->last_name}\n";
+            $markdown .= "Email: {$user->email}\n\n";
         }
-        return $markdown;
+
+        $parser = new \Parsedown();
+        return $parser->text($markdown); 
     }
 }
