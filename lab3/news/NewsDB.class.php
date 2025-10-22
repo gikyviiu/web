@@ -161,5 +161,4 @@ class NewsDB implements INewsDB {
     }
 }
 
-// В глобальной области видимости создаем временный объект $news
 //$news = new NewsDB();

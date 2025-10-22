@@ -1,21 +1,15 @@
 <?php
-// 1. Подключаем файл с описанием класса NewsDB
 require_once 'NewsDB.class.php';
 
-// 2. Создаём объект $news
 $news = new NewsDB();
 
-// 3. Создаём переменную $errMsg со строковым значением ""
 $errMsg = "";
 
-// Обработка удаления — только если передан GET-параметр id
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     require_once 'delete_news.inc.php';
 }
 
-// Проверяем, была ли отправлена HTML-форма (POST-запрос)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Подключаем файл для обработки формы
     require_once 'save_news.inc.php';
 }
 
@@ -49,21 +43,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
   <h1>Последние новости</h1>
 
-  <!-- Вывод сообщения об ошибке, если есть -->
   <?php if (!empty($errMsg)): ?>
     <div class="error"><?= htmlspecialchars($errMsg) ?></div>
   <?php endif; ?>
 
-  <!-- Вывод списка новостей -->
   <?php
-  // Подключаем обработчик получения новостей
   require_once 'get_news.inc.php';
 
   if (!empty($allNews)) {
       echo "<div class='news-list'>";
       foreach ($allNews as $item) {
           echo "<div class='news-item'>";
-          // ЗАГОЛОВОК КАК ССЫЛКА НА ПОЛНУЮ НОВОСТЬ
           echo "<div class='news-title'>";
           echo "<a href='view.php?id=" . $item['id'] . "'>" . htmlspecialchars($item['title']) . "</a>";
           echo "</div>";
@@ -85,7 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <hr style="margin: 30px 0;">
 
-  <!-- Форма добавления новости -->
   <form action="<?= $_SERVER['PHP_SELF']; ?>" method="post">
     <h2>Добавить новость</h2>
     Заголовок новости:<br>
