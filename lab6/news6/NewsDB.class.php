@@ -1,10 +1,6 @@
 <?php
 require_once 'INewsDB.class.php';
 
-/**
- * Класс NewsDB реализует интерфейс INewsDB для работы с новостной лентой
- * Использует SQLite через PDO для хранения данных и генерирует RSS-ленту
- */
 class NewsDB implements INewsDB, IteratorAggregate {
     const DB_NAME = 'news.db';
     const RSS_NAME = 'rss.xml';
@@ -14,11 +10,6 @@ class NewsDB implements INewsDB, IteratorAggregate {
     private $_pdo;
     private $items = [];
 
-    /**
-     * Конструктор класса
-     * Устанавливает соединение с базой данных SQLite через PDO
-     * Если базы нет — создаёт её и таблицы + заполняет category
-     */
     public function __construct() {
         try {
             $this->_pdo = new PDO("sqlite:" . self::DB_NAME);
@@ -28,20 +19,55 @@ class NewsDB implements INewsDB, IteratorAggregate {
             die("Ошибка подключения к базе данных.");
         }
 
-        if (!file_exists(self::DB_NAME)) {
-            $this->createTables();
-            $this->seedCategoryTable();
+        if ($this->shouldCreateDatabase()) {
+            $this->createDatabaseWithTransaction();
         }
 
         $this->getCategories();
     }
 
-    /**
-     * Деструктор класса
-     * Закрывает соединение с базой данных
-     */
     public function __destruct() {
         $this->_pdo = null;
+    }
+
+    /**
+     * Определяет, нужно ли создавать базу данных
+     * Учитывает: файл не существует ИЛИ файл существует, но его размер 0
+     *
+     * @return bool
+     */
+    private function shouldCreateDatabase(): bool {
+        if (!file_exists(self::DB_NAME)) {
+            return true;
+        }
+
+        $size = filesize(self::DB_NAME);
+        return $size === 0;
+    }
+
+    /**
+     * Создаёт базу данных в транзакции
+     */
+    private function createDatabaseWithTransaction() {
+        try {
+            $this->_pdo->beginTransaction();
+
+            $this->createTables();
+            $this->seedCategoryTable();
+
+            $this->_pdo->commit();
+
+            error_log("База данных успешно создана и заполнена.");
+
+        } catch (Exception $e) {
+            $this->_pdo->rollback();
+            error_log("Ошибка при создании базы данных: " . $e->getMessage());
+
+            echo "<h2 style='color:red;'>Ошибка при создании базы данных</h2>";
+            echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
+            echo "<p>Пожалуйста, удалите файл <code>" . self::DB_NAME . "</code> и перезагрузите страницу.</p>";
+            exit;
+        }
     }
 
     /**
@@ -59,8 +85,8 @@ class NewsDB implements INewsDB, IteratorAggregate {
             );
 
             CREATE TABLE IF NOT EXISTS category (
-                id INTEGER,
-                name TEXT
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL
             );
         ";
 
@@ -72,7 +98,7 @@ class NewsDB implements INewsDB, IteratorAggregate {
             error_log("Ошибка создания таблиц: " . $e->getMessage());
             error_log("Код ошибки: $errorCode");
             error_log("Детали: " . print_r($errorInfo, true));
-            throw new Exception("Не удалось создать таблицы.");
+            throw new Exception("Не удалось создать таблицы: " . $e->getMessage());
         }
     }
 
@@ -80,33 +106,22 @@ class NewsDB implements INewsDB, IteratorAggregate {
      * Заполнение таблицы category начальными данными
      */
     private function seedCategoryTable() {
-        $sql = "
-            INSERT INTO category(id, name)
-            SELECT 1 as id, 'Политика' as name
-            UNION SELECT 2 as id, 'Культура' as name
-            UNION SELECT 3 as id, 'Спорт' as name;
-        ";
-
         try {
-            $this->_pdo->exec($sql);
+            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (1, 'Политика');");
+            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (2, 'Культура');");
+            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (3, 'Спорт');");
         } catch (PDOException $e) {
             $errorCode = $this->_pdo->errorCode();
             $errorInfo = $this->_pdo->errorInfo();
             error_log("Ошибка заполнения категорий: " . $e->getMessage());
             error_log("Код ошибки: $errorCode");
             error_log("Детали: " . print_r($errorInfo, true));
+            throw new Exception("Ошибка заполнения категорий: " . $e->getMessage());
         }
     }
 
     /**
      * Добавление новой записи в новостную ленту
-     *
-     * @param string $title - заголовок новости
-     * @param string $category - категория новости (имя категории, например 'Политика')
-     * @param string $description - текст новости
-     * @param string $source - источник новости
-     *
-     * @return boolean - результат успех/ошибка
      */
     public function saveNews($title, $category, $description, $source) {
         $dt = time();
@@ -147,10 +162,6 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Удаление записи из новостной ленты
-     *
-     * @param integer $id - идентификатор удаляемой записи
-     *
-     * @return boolean - результат успех/ошибка
      */
     public function deleteNews($id) {
         try {
@@ -179,8 +190,6 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Получение всех записей из новостной ленты
-     *
-     * @return array - результат выборки в виде массива
      */
     public function getNews() {
         try {
@@ -235,8 +244,6 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Метод, требуемый интерфейсом IteratorAggregate
-     *
-     * @return ArrayIterator
      */
     public function getIterator(): ArrayIterator {
         return new ArrayIterator($this->items);
