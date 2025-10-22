@@ -178,5 +178,3 @@ class NewsDB implements INewsDB, IteratorAggregate {
         return new ArrayIterator($this->items);
     }
 }
-
-//$news = new NewsDB();

@@ -155,4 +155,3 @@ class NewsDB implements INewsDB {
     }
 }
 
-//$news = new NewsDB();
