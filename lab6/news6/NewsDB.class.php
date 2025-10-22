@@ -17,7 +17,7 @@ class NewsDB implements INewsDB, IteratorAggregate {
     /**
      * Конструктор класса
      * Устанавливает соединение с базой данных SQLite через PDO
-     * Всегда создаёт таблицы (если не существуют) и заполняет категории, если они отсутствуют
+     * Если базы нет — создаёт её и таблицы + заполняет category
      */
     public function __construct() {
         try {
@@ -28,9 +28,8 @@ class NewsDB implements INewsDB, IteratorAggregate {
             die("Ошибка подключения к базе данных.");
         }
 
-        $this->createTables();
-
-        if ($this->isCategoryTableEmpty()) {
+        if (!file_exists(self::DB_NAME)) {
+            $this->createTables();
             $this->seedCategoryTable();
         }
 
@@ -39,6 +38,7 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Деструктор класса
+     * Закрывает соединение с базой данных
      */
     public function __destruct() {
         $this->_pdo = null;
@@ -59,8 +59,8 @@ class NewsDB implements INewsDB, IteratorAggregate {
             );
 
             CREATE TABLE IF NOT EXISTS category (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL
+                id INTEGER,
+                name TEXT
             );
         ";
 
@@ -77,27 +77,18 @@ class NewsDB implements INewsDB, IteratorAggregate {
     }
 
     /**
-     * Проверяет, пуста ли таблица category
-     *
-     * @return bool
-     */
-    private function isCategoryTableEmpty(): bool {
-        try {
-            $count = $this->_pdo->query("SELECT COUNT(*) FROM category")->fetchColumn();
-            return ((int)$count) === 0;
-        } catch (PDOException $e) {
-            return true;
-        }
-    }
-
-    /**
      * Заполнение таблицы category начальными данными
      */
     private function seedCategoryTable() {
+        $sql = "
+            INSERT INTO category(id, name)
+            SELECT 1 as id, 'Политика' as name
+            UNION SELECT 2 as id, 'Культура' as name
+            UNION SELECT 3 as id, 'Спорт' as name;
+        ";
+
         try {
-            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (1, 'Политика');");
-            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (2, 'Культура');");
-            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (3, 'Спорт');");
+            $this->_pdo->exec($sql);
         } catch (PDOException $e) {
             $errorCode = $this->_pdo->errorCode();
             $errorInfo = $this->_pdo->errorInfo();
@@ -109,6 +100,13 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Добавление новой записи в новостную ленту
+     *
+     * @param string $title - заголовок новости
+     * @param string $category - категория новости (имя категории, например 'Политика')
+     * @param string $description - текст новости
+     * @param string $source - источник новости
+     *
+     * @return boolean - результат успех/ошибка
      */
     public function saveNews($title, $category, $description, $source) {
         $dt = time();
@@ -149,6 +147,10 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Удаление записи из новостной ленты
+     *
+     * @param integer $id - идентификатор удаляемой записи
+     *
+     * @return boolean - результат успех/ошибка
      */
     public function deleteNews($id) {
         try {
@@ -177,6 +179,8 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Получение всех записей из новостной ленты
+     *
+     * @return array - результат выборки в виде массива
      */
     public function getNews() {
         try {
@@ -231,6 +235,8 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Метод, требуемый интерфейсом IteratorAggregate
+     *
+     * @return ArrayIterator
      */
     public function getIterator(): ArrayIterator {
         return new ArrayIterator($this->items);
