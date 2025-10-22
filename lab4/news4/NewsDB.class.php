@@ -3,35 +3,28 @@ require_once 'INewsDB.class.php';
 
 /**
  * Класс NewsDB реализует интерфейс INewsDB для работы с новостной лентой
- * Использует SQLite через PDO для хранения данных и генерирует RSS-ленту
+ * Использует SQLite3 для хранения данных
  */
 class NewsDB implements INewsDB, IteratorAggregate {
-    const DB_NAME = 'news.db';
-    const RSS_NAME = 'rss.xml';
-    const RSS_TITLE = 'Последние новости';
-    const RSS_LINK = 'http://f1182369.xsph.ru/lab5/news5/news.php';
 
-    private $_pdo;
+    const DB_NAME = 'news.db';
+
+    private $_db;
+
     private $items = [];
 
     /**
      * Конструктор класса
-     * Устанавливает соединение с базой данных SQLite через PDO
-     * Всегда создаёт таблицы (если не существуют) и заполняет категории, если они отсутствуют
+     * Устанавливает соединение с базой данных SQLite
+     * Если базы нет — создаёт её и таблицы + заполняет category
      */
     public function __construct() {
-        try {
-            $this->_pdo = new PDO("sqlite:" . self::DB_NAME);
-            $this->_pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        } catch (PDOException $e) {
-            error_log("Ошибка подключения к БД: " . $e->getMessage());
-            die("Ошибка подключения к базе данных.");
-        }
-
-        $this->createTables();
-
-        if ($this->isCategoryTableEmpty()) {
+        if (!file_exists(self::DB_NAME)) {
+            $this->_db = new SQLite3(self::DB_NAME);
+            $this->createTables();
             $this->seedCategoryTable();
+        } else {
+            $this->_db = new SQLite3(self::DB_NAME);
         }
 
         $this->getCategories();
@@ -39,9 +32,12 @@ class NewsDB implements INewsDB, IteratorAggregate {
 
     /**
      * Деструктор класса
+     * Закрывает соединение с базой данных
      */
     public function __destruct() {
-        $this->_pdo = null;
+        if ($this->_db) {
+            $this->_db->close();
+        }
     }
 
     /**
@@ -59,242 +55,126 @@ class NewsDB implements INewsDB, IteratorAggregate {
             );
 
             CREATE TABLE IF NOT EXISTS category (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL
+                id INTEGER,
+                name TEXT
             );
         ";
-
-        try {
-            $this->_pdo->exec($sql);
-        } catch (PDOException $e) {
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("Ошибка создания таблиц: " . $e->getMessage());
-            error_log("Код ошибки: $errorCode");
-            error_log("Детали: " . print_r($errorInfo, true));
-            throw new Exception("Не удалось создать таблицы.");
-        }
-    }
-
-    /**
-     * Проверяет, пуста ли таблица category
-     *
-     * @return bool
-     */
-    private function isCategoryTableEmpty(): bool {
-        try {
-            $count = $this->_pdo->query("SELECT COUNT(*) FROM category")->fetchColumn();
-            return ((int)$count) === 0;
-        } catch (PDOException $e) {
-            return true;
-        }
+        $this->_db->exec($sql);
     }
 
     /**
      * Заполнение таблицы category начальными данными
      */
     private function seedCategoryTable() {
-        try {
-            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (1, 'Политика');");
-            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (2, 'Культура');");
-            $this->_pdo->exec("INSERT OR IGNORE INTO category(id, name) VALUES (3, 'Спорт');");
-        } catch (PDOException $e) {
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("Ошибка заполнения категорий: " . $e->getMessage());
-            error_log("Код ошибки: $errorCode");
-            error_log("Детали: " . print_r($errorInfo, true));
-        }
+        $sql = "
+            INSERT INTO category(id, name)
+            SELECT 1 as id, 'Политика' as name
+            UNION SELECT 2 as id, 'Культура' as name
+            UNION SELECT 3 as id, 'Спорт' as name;
+        ";
+        $this->_db->exec($sql);
     }
 
     /**
      * Добавление новой записи в новостную ленту
+     *
+     * @param string $title - заголовок новости
+     * @param string $category - категория новости (имя категории, например 'Политика')
+     * @param string $description - текст новости
+     * @param string $source - источник новости
+     *
+     * @return boolean - результат успех/ошибка
      */
     public function saveNews($title, $category, $description, $source) {
         $dt = time();
 
-        try {
-            $stmt = $this->_pdo->prepare("SELECT id FROM category WHERE name = ?");
-            $stmt->execute([$category]);
-            $catRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        $catStmt = $this->_db->prepare("SELECT id FROM category WHERE name = ?");
+        $catStmt->bindValue(1, $category, SQLITE3_TEXT);
+        $res = $catStmt->execute();
+        $catRow = $res->fetchArray(SQLITE3_ASSOC);
 
-            $categoryId = $catRow ? (int)$catRow['id'] : 0;
-
-            $stmt = $this->_pdo->prepare("
-                INSERT INTO msgs (title, category, description, source, datetime)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-
-            $result = $stmt->execute([$title, $categoryId, $description, $source, $dt]);
-
-            if ($result) {
-                $this->createRss();
-                return true;
-            }
-
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("saveNews: execute вернул false. Код: $errorCode, Детали: " . print_r($errorInfo, true));
-            return false;
-
-        } catch (PDOException $e) {
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("saveNews: PDOException — " . $e->getMessage());
-            error_log("Код ошибки: $errorCode");
-            error_log("Детали ошибки: " . print_r($errorInfo, true));
-            return false;
+        if (!$catRow) {
+            $categoryId = 0; 
+        } else {
+            $categoryId = $catRow['id'];
         }
+
+        $stmt = $this->_db->prepare("
+            INSERT INTO msgs (title, category, description, source, datetime)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+
+        $stmt->bindValue(1, $title, SQLITE3_TEXT);
+        $stmt->bindValue(2, $categoryId, SQLITE3_INTEGER);
+        $stmt->bindValue(3, $description, SQLITE3_TEXT);
+        $stmt->bindValue(4, $source, SQLITE3_TEXT);
+        $stmt->bindValue(5, $dt, SQLITE3_INTEGER);
+
+        $result = $stmt->execute();
+        return $result !== false;
     }
 
     /**
      * Удаление записи из новостной ленты
+     *
+     * @param integer $id - идентификатор удаляемой записи
+     *
+     * @return boolean - результат успех/ошибка
      */
     public function deleteNews($id) {
-        try {
-            $stmt = $this->_pdo->prepare("DELETE FROM msgs WHERE id = ?");
-            $result = $stmt->execute([$id]);
-
-            if ($result) {
-                $this->createRss();
-                return true;
-            }
-
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("deleteNews: execute вернул false. Код: $errorCode, Детали: " . print_r($errorInfo, true));
-            return false;
-
-        } catch (PDOException $e) {
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("deleteNews: PDOException — " . $e->getMessage());
-            error_log("Код ошибки: $errorCode");
-            error_log("Детали ошибки: " . print_r($errorInfo, true));
-            return false;
-        }
+        $stmt = $this->_db->prepare("DELETE FROM msgs WHERE id = ?");
+        $stmt->bindValue(1, $id, SQLITE3_INTEGER);
+        $result = $stmt->execute();
+        return $result !== false;
     }
 
     /**
      * Получение всех записей из новостной ленты
+     *
+     * @return array - результат выборки в виде массива
      */
     public function getNews() {
-        try {
-            $query = "
-                SELECT msgs.id as id, msgs.title, category.name as category,
-                       msgs.description, msgs.source, msgs.datetime
-                FROM msgs
-                JOIN category ON category.id = msgs.category
-                ORDER BY msgs.id DESC
-            ";
+        $result = [];
+        $query = "
+        SELECT msgs.id as id, msgs.title, category.name as category, msgs.description, msgs.source, msgs.datetime
+        FROM msgs
+        JOIN category ON category.id = msgs.category
+        ORDER BY msgs.id DESC
+        ";
 
-            $stmt = $this->_pdo->prepare($query);
-            $stmt->execute();
+        $stmt = $this->_db->prepare($query);
+        $res = $stmt->execute();
 
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        } catch (PDOException $e) {
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("getNews: PDOException — " . $e->getMessage());
-            error_log("Код ошибки: $errorCode");
-            error_log("Детали ошибки: " . print_r($errorInfo, true));
-            return [];
+        while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
+            $result[] = $row;
         }
+
+        return $result;
     }
 
     /**
-     * Получение категорий из БД и заполнение свойства $items
+     * Закрытый метод для получения категорий из БД и заполнения свойства $items
      */
     private function getCategories(): void {
-        try {
-            $query = "SELECT id, name FROM category";
-            $stmt = $this->_pdo->prepare($query);
-            $stmt->execute();
+        $query = "SELECT id, name FROM category";
+        $stmt = $this->_db->prepare($query);
+        $res = $stmt->execute();
 
-            $categories = [];
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $categories[(int)$row['id']] = $row['name'];
-            }
-
-            $this->items = $categories;
-
-        } catch (PDOException $e) {
-            $errorCode = $this->_pdo->errorCode();
-            $errorInfo = $this->_pdo->errorInfo();
-            error_log("getCategories: PDOException — " . $e->getMessage());
-            error_log("Код ошибки: $errorCode");
-            error_log("Детали ошибки: " . print_r($errorInfo, true));
-            $this->items = [];
+        $categories = [];
+        while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
+            $categories[$row['id']] = $row['name'];
         }
+
+        $this->items = $categories;
     }
 
     /**
      * Метод, требуемый интерфейсом IteratorAggregate
+     * Возвращает итератор для свойства $items
+     *
+     * @return ArrayIterator
      */
     public function getIterator(): ArrayIterator {
         return new ArrayIterator($this->items);
-    }
-
-    /**
-     * Метод для создания RSS-документа с помощью DOM
-     */
-    public function createRss(): void {
-        try {
-            $dom = new DOMDocument('1.0', 'UTF-8');
-            $dom->formatOutput = true;
-            $dom->preserveWhiteSpace = false;
-
-            $rss = $dom->createElement('rss');
-            $dom->appendChild($rss);
-
-            $version = $dom->createAttribute('version');
-            $version->value = '2.0';
-            $rss->appendChild($version);
-
-            $channel = $dom->createElement('channel');
-            $rss->appendChild($channel);
-
-            $title = $dom->createElement('title');
-            $title->appendChild($dom->createTextNode(self::RSS_TITLE));
-            $channel->appendChild($title);
-
-            $link = $dom->createElement('link');
-            $link->appendChild($dom->createTextNode(self::RSS_LINK));
-            $channel->appendChild($link);
-
-            $newsList = $this->getNews();
-
-            foreach ($newsList as $item) {
-                $itemElement = $dom->createElement('item');
-                $channel->appendChild($itemElement);
-
-                $titleItem = $dom->createElement('title');
-                $titleItem->appendChild($dom->createTextNode($item['title']));
-                $itemElement->appendChild($titleItem);
-
-                $linkItem = $dom->createElement('link');
-                $linkItem->appendChild($dom->createTextNode(self::RSS_LINK . '?id=' . $item['id']));
-                $itemElement->appendChild($linkItem);
-
-                $descriptionItem = $dom->createElement('description');
-                $cdata = $dom->createCDATASection($item['description']);
-                $descriptionItem->appendChild($cdata);
-                $itemElement->appendChild($descriptionItem);
-
-                $pubDateItem = $dom->createElement('pubDate');
-                $pubDateItem->appendChild($dom->createTextNode(date(DATE_RFC2822, $item['datetime'])));
-                $itemElement->appendChild($pubDateItem);
-
-                $categoryItem = $dom->createElement('category');
-                $categoryItem->appendChild($dom->createTextNode($item['category']));
-                $itemElement->appendChild($categoryItem);
-            }
-
-            $dom->save(self::RSS_NAME);
-
-        } catch (Exception $e) {
-            error_log("Ошибка при создании RSS: " . $e->getMessage());
-        }
     }
 }
