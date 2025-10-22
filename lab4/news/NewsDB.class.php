@@ -5,11 +5,13 @@ require_once 'INewsDB.class.php';
  * Класс NewsDB реализует интерфейс INewsDB для работы с новостной лентой
  * Использует SQLite3 для хранения данных
  */
-class NewsDB implements INewsDB {
+class NewsDB implements INewsDB, IteratorAggregate {
+
     const DB_NAME = 'news.db';
 
-    
     private $_db;
+
+    private $items = [];
 
     /**
      * Конструктор класса
@@ -24,6 +26,8 @@ class NewsDB implements INewsDB {
         } else {
             $this->_db = new SQLite3(self::DB_NAME);
         }
+
+        $this->getCategories();
     }
 
     /**
@@ -84,11 +88,6 @@ class NewsDB implements INewsDB {
     public function saveNews($title, $category, $description, $source) {
         $dt = time();
 
-        $stmt = $this->_db->prepare("
-            INSERT INTO msgs (title, category, description, source, datetime)
-            VALUES (?, ?, ?, ?, ?)
-        ");
-
         $catStmt = $this->_db->prepare("SELECT id FROM category WHERE name = ?");
         $catStmt->bindValue(1, $category, SQLITE3_TEXT);
         $res = $catStmt->execute();
@@ -100,26 +99,40 @@ class NewsDB implements INewsDB {
             $categoryId = $catRow['id'];
         }
 
+        $stmt = $this->_db->prepare("
+            INSERT INTO msgs (title, category, description, source, datetime)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+
         $stmt->bindValue(1, $title, SQLITE3_TEXT);
         $stmt->bindValue(2, $categoryId, SQLITE3_INTEGER);
         $stmt->bindValue(3, $description, SQLITE3_TEXT);
         $stmt->bindValue(4, $source, SQLITE3_TEXT);
-        $stmt->bindValue(5, $dt, SQLITE3_INTEGER); 
+        $stmt->bindValue(5, $dt, SQLITE3_INTEGER);
 
         $result = $stmt->execute();
         return $result !== false;
     }
 
     /**
-     * Выборка всех записей из новостной ленты
+     * Удаление записи из новостной ленты
+     *
+     * @param integer $id - идентификатор удаляемой записи
+     *
+     * @return boolean - результат успех/ошибка
+     */
+    public function deleteNews($id) {
+        $stmt = $this->_db->prepare("DELETE FROM msgs WHERE id = ?");
+        $stmt->bindValue(1, $id, SQLITE3_INTEGER);
+        $result = $stmt->execute();
+        return $result !== false;
+    }
+
+    /**
+     * Получение всех записей из новостной ленты
      *
      * @return array - результат выборки в виде массива
      */
-    /**
- * Выборка всех записей из новостной ленты
- *
- * @return array - результат выборки в виде массива
- */
     public function getNews() {
         $result = [];
         $query = "
@@ -140,18 +153,29 @@ class NewsDB implements INewsDB {
     }
 
     /**
-     * Удаление записи из новостной ленты
-     *
-     * @param integer $id - идентификатор удаляемой записи
-     *
-     * @return boolean - результат успех/ошибка
+     * Закрытый метод для получения категорий из БД и заполнения свойства $items
      */
+    private function getCategories(): void {
+        $query = "SELECT id, name FROM category";
+        $stmt = $this->_db->prepare($query);
+        $res = $stmt->execute();
 
-    public function deleteNews($id) {
-        $stmt = $this->_db->prepare("DELETE FROM msgs WHERE id = ?");
-        $stmt->bindValue(1, $id, SQLITE3_INTEGER);
-        $result = $stmt->execute();
-        return $result !== false;
+        $categories = [];
+        while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
+            $categories[$row['id']] = $row['name'];
+        }
+
+        $this->items = $categories;
+    }
+
+    /**
+     * Метод, требуемый интерфейсом IteratorAggregate
+     * Возвращает итератор для свойства $items
+     *
+     * @return ArrayIterator
+     */
+    public function getIterator(): ArrayIterator {
+        return new ArrayIterator($this->items);
     }
 }
 
