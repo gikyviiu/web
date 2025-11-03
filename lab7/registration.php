@@ -3,16 +3,16 @@ session_start();
 
 $message = '';
 
-// Обработка отправки формы
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['captcha'])) {
         $user_input = trim($_POST['captcha']);
         $correct_captcha = $_SESSION['captcha_code'] ?? '';
 
         if ($user_input === $correct_captcha) {
-            $message = '<p class="success">✅ Отлично! Вы правильно ввели символы с изображения.</p>';
+            $message = '<p class="success">✅ Успех!</p>';
         } else {
-            $message = "<strong>❌ Неправильно!</strong> Вы ввели: " . htmlspecialchars($user_input) . ". Правильный ответ: " . htmlspecialchars($correct_captcha);
+            $message = '<p class="error"> ❌ Неверные символы!</p>';
         }
 
         unset($_SESSION['captcha_code']);
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <h2>Проверка CAPTCHA</h2>
 
-<!-- Форма с CAPTCHA -->
+
 <form id="captcha-form" method="POST" action="">
     <div id="captcha-container">
         <img id="captcha-img" src="noise-picture.php" alt="CAPTCHA" style="border: 1px solid #ccc;">
@@ -57,9 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </form>
 
-<!-- Сообщение об отключённых изображениях -->
+
 <div id="image-disabled-warning">
-    ⚠️ Внимание: изображения в вашем браузере, вероятно, отключены или заблокированы. Без CAPTCHA проверка невозможна.
+    ⚠️ Внимание: изображения в вашем браузере отключены или заблокированы. Без CAPTCHA проверка невозможна.
 </div>
 
 <script>
@@ -82,28 +82,23 @@ document.addEventListener('DOMContentLoaded', function () {
         showImageDisabledWarning();
     };
 
-    // Проверка через 2 секунды
+
     setTimeout(function () {
         if (!loaded) {
             showImageDisabledWarning();
         }
-    }, 2000);
+    }, 100);
 
     function showImageDisabledWarning() {
-        // Скрываем CAPTCHA
         container.style.display = 'none';
-
-        // Показываем предупреждение
         warning.style.display = 'block';
 
-        // Удаляем поле и кнопку, чтобы нельзя было отправить
         if (input) input.remove();
         if (submitBtn) submitBtn.remove();
 
-        // Блокируем отправку формы
+        
         form.onsubmit = function(e) {
             e.preventDefault();
-            alert("Изображения отключены. Проверка CAPTCHA невозможна.");
         };
     }
 });

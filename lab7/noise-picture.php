@@ -11,12 +11,13 @@ $font_size_min = 18;
 $font_size_max = 30;
 $spacing = 10;
 
-$chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+$chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 $random_string = '';
 for ($i = 0; $i < $symbols_count; $i++) {
     $random_string .= $chars[rand(0, strlen($chars) - 1)];
 }
 $_SESSION['captcha_code'] = $random_string;
+
 
 $fonts_dir = 'fonts/';
 $available_fonts = glob($fonts_dir . '*.ttf');
@@ -57,13 +58,12 @@ for ($i = 0; $i < strlen($random_string); $i++) {
 
 $total_width -= $spacing;
 
-// 6. Центрирование
 $image_width = imagesx($source);
 $image_height = imagesy($source);
 $start_x = max(0, ($image_width - $total_width) / 2);
 $y = $image_height / 2 + 13;
 
-// 7. Отрисовка
+
 $current_x = $start_x;
 foreach ($symbol_data as $data) {
     imagettftext(
@@ -79,7 +79,7 @@ foreach ($symbol_data as $data) {
     $current_x += $data['width'] + $spacing;
 }
 
-// 8. Сжатие на 50%
+
 $compressed_width = $image_width / 2;
 $compressed_height = $image_height / 2;
 $compressed = imagecreatetruecolor($compressed_width, $compressed_height);
@@ -91,7 +91,7 @@ imagecopyresampled(
     $image_width, $image_height
 );
 
-// 9. Вывод
+
 imagedestroy($source);
 header('Content-Type: image/jpeg');
 imagejpeg($compressed, null, 80);
