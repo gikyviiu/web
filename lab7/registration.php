@@ -62,52 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ⚠️ Внимание: изображения в вашем браузере, вероятно, отключены или заблокированы. Без CAPTCHA проверка невозможна.
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const img = document.getElementById('captcha-img');
-    const warning = document.getElementById('image-disabled-warning');
-    const container = document.getElementById('captcha-container');
-    const form = document.getElementById('captcha-form');
-    const input = document.getElementById('captcha');
-    const submitBtn = document.getElementById('submit-btn');
-
-    let loaded = false;
-
-    img.onload = function () {
-        loaded = true;
-    };
-
-    img.onerror = function () {
-        loaded = true;
-        showImageDisabledWarning();
-    };
-
-    // Проверка через 2 секунды
-    setTimeout(function () {
-        if (!loaded) {
-            showImageDisabledWarning();
-        }
-    }, 2000);
-
-    function showImageDisabledWarning() {
-        // Скрываем CAPTCHA
-        container.style.display = 'none';
-
-        // Показываем предупреждение
-        warning.style.display = 'block';
-
-        // Удаляем поле и кнопку, чтобы нельзя было отправить
-        if (input) input.remove();
-        if (submitBtn) submitBtn.remove();
-
-        // Блокируем отправку формы
-        form.onsubmit = function(e) {
-            e.preventDefault();
-            alert("Изображения отключены. Проверка CAPTCHA невозможна.");
-        };
-    }
-});
-</script>
+    
 
 <?php
 if (!empty($message)) {
