@@ -1,0 +1,90 @@
+/* Основные стили для сайта */
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+	line-height: 1.6;
+	color: #1f2937; /* тёмно-серый вместо чёрного */
+	background-color: #f9fafb; /* очень светлый серо-голубой */
+}
+
+header {
+	background-color: #4f46e5; /* насыщенный индиго */
+	color: white;
+	padding: 20px;
+	text-align: center;
+}
+
+.container {
+	display: flex;
+	max-width: 1200px;
+	margin: 20px auto;
+	padding: 0 20px;
+	gap: 20px;
+}
+
+.sidebar {
+	width: 200px;
+	background-color: #f3f4f6; /* мягкий серый фон */
+	padding: 20px;
+	border-radius: 8px; /* чуть более скруглён */
+	min-height: 400px;
+}
+
+.sidebar.left {
+	order: 1;
+}
+
+.sidebar.right {
+	order: 3;
+}
+
+main {
+	flex: 1;
+	background-color: white;
+	padding: 20px;
+	border-radius: 8px;
+	box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* мягкая тень */
+	order: 2;
+}
+
+footer {
+	padding: 20px;
+	text-align: center;
+	margin-top: 20px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 20px 0;
+}
+
+table th {
+	background-color: #6366f1; /* яркий индиго */
+	color: white;
+	padding: 12px;
+	text-align: left;
+}
+
+table td {
+	padding: 12px;
+	border-bottom: 1px solid #e5e7eb;
+}
+
+table tr:hover {
+	background-color: #f9fafb;
+}
+
+h1 {
+	color: #4f46e5; /* тот же цвет, что и header */
+	margin-bottom: 15px;
+}
+
+p {
+	margin-bottom: 10px;
+}

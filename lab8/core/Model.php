@@ -5,13 +5,18 @@
 	{
 		private static $link;
 		
-		public function __construct()
-		{
-			if (!self::$link) {
-				self::$link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-				mysqli_query(self::$link, "SET NAMES 'utf8'");
+	public function __construct()
+	{
+		if (!self::$link) {
+			$link = @mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+			if (!$link) {
+				$error = mysqli_connect_error();
+				throw new \Exception("Ошибка подключения к базе данных: " . $error . ". Проверьте настройки подключения в файле /project/config/connection.php");
 			}
+			self::$link = $link;
+			mysqli_query(self::$link, "SET NAMES 'utf8'");
 		}
+	}
 		
 		protected function findOne($query)
 		{
